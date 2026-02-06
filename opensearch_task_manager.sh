@@ -3,15 +3,35 @@
 # Requirements: curl, jq, fzf
 # Usage: ./opensearch_task_manager.sh
 
-# Configuration
-HOST="https://localhost:9200"
-USER="admin"
-PASS="password"
+# Load configuration
+if [ -f "config.sh" ]; then
+    source config.sh
+else
+    echo "Error: config.sh not found. Copy config.sh.example to config.sh and update with your credentials."
+    exit 1
+fi
+
+HOST="${OPENSEARCH_HOST:-https://localhost:8443}"
+USER="${OPENSEARCH_USER:-admin}"
+PASS="${OPENSEARCH_PASS}"
 
 cancel_tasks_loop() {
   while true; do
-    # Fetch latest _tasks response
-    response=$(curl -sk -u "$USER:$PASS" "$HOST/_tasks?actions=*search&detailed=true")
+    # Fetch latest _tasks response (all tasks, not just search)
+    response=$(curl -sk -u "$USER:$PASS" "$HOST/_tasks?detailed=true")
+    
+    # Show all running tasks for monitoring
+    echo -e "\n=== All Running Tasks ==="
+    echo "$response" | jq -r '.nodes[].tasks | to_entries[] | 
+      select(.value.action != "cluster:monitor/tasks/lists" and .value.action != "cluster:monitor/tasks/lists[n]") |
+      "[\(if .value.cancellable then "CANCELLABLE" else "PROTECTED  " end)] \(.value.action) | \(.value.running_time_in_nanos // 0 | . / 1000000 | floor)ms | \(.value.description // .key)"' 2>/dev/null
+    
+    task_count=$(echo "$response" | jq '[.nodes[].tasks | to_entries[] | select(.value.action != "cluster:monitor/tasks/lists" and .value.action != "cluster:monitor/tasks/lists[n]")] | length' 2>/dev/null)
+    
+    if [ "$task_count" = "0" ] || [ -z "$task_count" ]; then
+      echo "No active tasks (cluster is idle)"
+    fi
+    echo "============================"
 
     mapfile -t tasks < <(echo "$response" | jq -r '
       .nodes[].tasks | to_entries[] | select(.value.cancellable == true) |
@@ -19,7 +39,7 @@ cancel_tasks_loop() {
     ')
 
     if [ ${#tasks[@]} -eq 0 ]; then
-      echo -e "\nNo cancellable search tasks found."
+      echo -e "\nNo cancellable tasks found."
       sleep 5
       return
     fi
@@ -39,7 +59,7 @@ cancel_tasks_loop() {
     timestamp=$(date +"%Y%m%d_%H%M%S")
     mkdir -p killed_tasks_logs
 
-    fresh_response=$(curl -sk -u "$USER:$PASS" "$HOST/_tasks?actions=*search&detailed=true")
+    fresh_response=$(curl -sk -u "$USER:$PASS" "$HOST/_tasks?detailed=true")
 
     while IFS= read -r line; do
       task_id=$(echo "$line" | cut -d'|' -f1 | xargs)

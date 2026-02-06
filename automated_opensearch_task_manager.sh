@@ -3,17 +3,24 @@
 # Requirements: curl, jq
 # Usage: ./opensearch_auto_task_manager.sh
 
-# Configuration
-HOST="https://localhost:9200"
-USER="admin"
-PASS="password"
-THRESHOLD_MS=10000                    # 10 seconds in ms
-THRESHOLD_NS=$((THRESHOLD_MS * 1000000))  # 10 sec in nanoseconds
+# Load configuration
+if [ -f "config.sh" ]; then
+    source config.sh
+else
+    echo "Error: config.sh not found. Copy config.sh.example to config.sh and update with your credentials."
+    exit 1
+fi
+
+HOST="${OPENSEARCH_HOST:-https://localhost:9200}"
+USER="${OPENSEARCH_USER:-admin}"
+PASS="${OPENSEARCH_PASS}"
+THRESHOLD_MS=${THRESHOLD_MS:-10000}                    # 10 seconds in ms
+THRESHOLD_NS=$((THRESHOLD_MS * 1000000))  # Convert to nanoseconds
 
 while true; do
   echo "Checking for tasks running longer than ${THRESHOLD_MS} ms..."
 
-  response=$(curl -sk -u "$USER:$PASS" "$HOST/_tasks?actions=*search&detailed=true")
+  response=$(curl -sk -u "$USER:$PASS" "$HOST/_tasks?detailed=true")
 
   tasks=$(echo "$response" | jq -r --arg threshold "$THRESHOLD_NS" '
     .nodes[].tasks | to_entries[] |

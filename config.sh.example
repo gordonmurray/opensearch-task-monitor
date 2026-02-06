@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# OpenSearch Configuration
+# Copy this file to config.sh and update with your credentials
+
+# Connection settings
+export OPENSEARCH_HOST="https://localhost:8443"
+export OPENSEARCH_USER="admin"
+export OPENSEARCH_PASS="your_password_here"
+
+# Optional settings
+export CHECK_INTERVAL=2           # Seconds between checks (query logger)
+export THRESHOLD_MS=10000         # Auto-cancel threshold in milliseconds (automated manager)

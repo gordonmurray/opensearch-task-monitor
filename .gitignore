@@ -1,0 +1,15 @@
+# Logs
+query_logs/
+killed_tasks_logs/
+
+# Configuration
+config.sh
+.env
+
+# Temporary files
+*.tmp
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
